@@ -1,7 +1,7 @@
 #ifndef _PACKET
 #define _PACKET
 
-#include <stdint.h>
+#include <cstdint>
 
 namespace rfcom
 {  
