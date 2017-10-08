@@ -12,14 +12,15 @@ namespace rfcom
   {
   public:
     /**
-      Generate
+      Generate CRC16 check sequence. Checksum initial value 0x0000. Non-reflected output and input.
       @params
+      pos: starting position of buffer.
+      len: total length of buffer. Length should be at least 1 bytes.
+      generator: CRC16 generator. Ignore the coefficient 1 of power 16.
       @return
+      CRC checksum.
      */
-    template<class _Tc>
-    static byte1_t* crcGen(const byte1_t* pos, byte1_t* checksum,  _Tc generator, size_t len);
-    template<class _Tc>
-    static bool crcCheck(const byte1_t* pos, _Tc generator, size_t len);
+    static byte2_t crc16Gen(const byte1_t* pos, size_t len, byte2_t generator);
     
     /**
       COBS encode. Unencoded data should be placed in range [p+1, p+len-1). *(p+len-1) should be 0.
@@ -39,7 +40,7 @@ namespace rfcom
        len: total length of buffer, in bytes. Length should be at least 2 bytes.
        delim: delimiter. The character to be repalced.
        @return
-       bool value, indicates the buffer can be correctly decoded.
+       boolean, indicates the buffer can be correctly decoded.
      */
     static bool cobsDecode(byte1_t* pos, size_t len, byte1_t delim);
   };
