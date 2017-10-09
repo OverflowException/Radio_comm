@@ -4,12 +4,19 @@
 #include <cstdio>
 #include "packet.h"
 
+#define CRC16_GEN_BUYPASS (0x8005)
+#define CRC16_GEN_XMODEM (0x1021)
+#define CRC16_GEN_DECTX (0x0589)
+#define CRC16_GEN_T10DIFF (0x8BB7)
+
 namespace rfcom
 {
+  
   //_Tc --- data type of the CRC generator.
   //CRC generator must not contain leading zeros.
   class Protocol
   {
+    
   public:
     /**
       Generate CRC16 check sequence. Checksum initial value 0x0000. Non-reflected output and input.
