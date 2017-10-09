@@ -9,35 +9,17 @@ namespace rfcom
       return 0;
     
     byte2_t checksum = 0x0000;
-    int bits_read = 0;
-    bool highest_bit;
+    int bit_count;
     
-    while(len > 0)
+    while(len--)
       {
-	highest_bit = (bool)(checksum & 0x8000);
-	checksum <<= 1;
-	checksum |= ((*pos << bits_read) & 0x80) >> 7;
-	
-	++bits_read;
-	if(bits_read > 7)
-	  {
-	    bits_read = 0;
-	    --len;
-	    ++pos;
-	  }
-
-	if(highest_bit)
-	  checksum ^= generator;
+	checksum ^= *pos++;
+	for(bit_count = 0; bit_count < 8; ++bit_count)
+	  checksum = checksum & 0x8000 ? (checksum << 1) ^ generator : checksum << 1;
       }
 
-    //The last 2 bytes
-    for(bits_read = 0; bits_read < 16; ++bits_read)
-      {
-	highest_bit = (bool)(checksum & 0x8000);
-	checksum <<= 1;
-	if(highest_bit)
-	  checksum ^= generator;
-      }
+    for(bit_count = 0; bit_count < 8; ++bit_count)
+      checksum = checksum & 0x8000 ? (checksum << 1) ^ generator : checksum << 1;
     
     return checksum;
   }
