@@ -62,6 +62,5 @@ namespace rfcom
       return false;
 
     return true;
-  }
-  
+  }  
 }

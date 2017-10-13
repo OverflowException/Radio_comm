@@ -32,7 +32,7 @@ namespace rfcom
     /**
       COBS encode. Unencoded data should be placed in range [p+1, p+len-1). *(p+len-1) should be 0.
       @params
-      pos: Starting position of buffer being encoded.
+      pos: Starting position of buffer being encoded. This buffer should start from ohb, end at eop.
       len: total length of buffer, in bytes. Length should be at least 2 bytes.
       delim: delimiter. The character to be replaced.
       @return
@@ -43,7 +43,7 @@ namespace rfcom
     /**
        COBS decode. *(p+len-1) should be 0.
        @params
-       pos: Starting position of buffer being decoded.
+       pos: Starting position of buffer being decoded. This buffer should start from ohb, end at eop.
        len: total length of buffer, in bytes. Length should be at least 2 bytes.
        delim: delimiter. The character to be repalced.
        @return
