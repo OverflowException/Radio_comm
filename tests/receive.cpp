@@ -1,8 +1,24 @@
-#include "../src/radiocom.h"
+#include "../include/radiocom.h"
 #include <string>
 
 using namespace std;
 using namespace rfcom;
+
+
+void* keyboard_monitor(void* args)
+{
+  Transceiver* t_ptr = static_cast<Transceiver*>(args);
+  string input;
+  while(getline(cin, input))
+    {
+      if(input == "exit")
+	break;
+
+      
+    }
+
+  pthread_exit(NULL);
+}
 
 int main(int argc, char** argv)
 {

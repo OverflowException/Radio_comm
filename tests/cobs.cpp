@@ -2,7 +2,7 @@
 #include <iterator>
 #include <algorithm>
 
-#include "../src/radiocom.h"
+#include "../include/radiocom.h"
 
 using namespace std;
 using namespace rfcom;

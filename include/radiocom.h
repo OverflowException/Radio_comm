@@ -8,6 +8,7 @@
 #include <pthread.h>
 #include <unistd.h>
 
+
 namespace rfcom
 {
   /*Radio communication module base class*/
@@ -71,7 +72,7 @@ namespace rfcom
     bool retrieveNext(Packet& p);
 
     /**
-       pack up and push the packet into the sender PDU queue.
+       pack up and send the packet.
        @params
        id
        index
@@ -86,11 +87,13 @@ namespace rfcom
     int _s_fd;  //serial port file descripter
 
     byte2_t _crc_gen;  //CRC16 generator polynomial
+    
     std::queue<Packet*> _pdu_queue;  //A queue of protocal data units. Listener.
+    pthread_mutex_t _pdu_lock; 
 
     pthread_t _listen_thread_t;
     volatile bool _listen_stop; //listener thread stop flag. Listener checks this flag.
-
+    
     int _init_port();
     inline int _term_port(){ return close(_s_fd); }
     static void* _listener_work(void* arg);

@@ -6,6 +6,7 @@ RECEIVE_TARGET = bin/receive_test
 
 CXX = g++
 CFLAGS = -Wall -O2 -std=c++11 -pthread
+L_COMMAND = $(CXX) 
 C_COMMAND = $(CXX) $(CFLAGS) $^ -o $@
 
 all: $(CRC_TARGET) $(COBS_TARGET) $(RECEIVE_TARGET)

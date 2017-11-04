@@ -1,7 +1,7 @@
 #include <iostream>
 #include <ctime>
 #include <cstdio>
-#include "../src/radiocom.h"
+#include "../include/radiocom.h"
 
 using namespace std;
 using namespace rfcom;

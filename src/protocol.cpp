@@ -1,4 +1,4 @@
-#include "protocol.h"
+#include "../include/protocol.h"
 #include <iostream>
 
 namespace rfcom

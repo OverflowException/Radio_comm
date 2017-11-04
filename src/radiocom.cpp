@@ -1,19 +1,19 @@
 #include <cstring>
-#include "radiocom.h"
 #include <termios.h>
 #include <fcntl.h>
 #include <sys/poll.h>
+#include "../include/radiocom.h"
 
 namespace rfcom
 {
   Transceiver::~Transceiver()
   {
+    termPort();
     while(!_pdu_queue.empty())
       {
 	delete _pdu_queue.front();
 	_pdu_queue.pop();
       }
-    termPort();
   }
   
   int Transceiver::initPort(const std::string& p_name)
@@ -68,7 +68,10 @@ namespace rfcom
 	      std::cout << std::hex << int(*((byte1_t*)p_buf + offset)) << " ";
 	    std::cout << std::endl;
 #endif
+	    
+	    pthread_mutex_lock(&obj_ptr->_pdu_lock);
 	    obj_ptr->_pdu_queue.push(p_buf);
+	    pthread_mutex_unlock(&obj_ptr->_pdu_lock);
 	  }
       }
 #ifdef _COM_DEBUG
@@ -89,6 +92,7 @@ namespace rfcom
       }
     
     _listen_stop = false;
+    pthread_mutex_init(&_pdu_lock, NULL);
     //Create thread
     int ret;
     if((ret = pthread_create(&_listen_thread_t, NULL, _listener_work, this)) != 0)
@@ -127,13 +131,19 @@ namespace rfcom
   
   int Transceiver::tryPopUnpack(byte1_t& id, byte2_t& index, byte1_t* p_data)
   {
+    pthread_mutex_lock(&_pdu_lock);
     //PDU queue empty
     if(_pdu_queue.empty())
-      return -1;
+      {
+	pthread_mutex_unlock(&_pdu_lock);
+	return -1;
+      }
 
+    
     Packet p;
     memcpy(&p, _pdu_queue.front(), sizeof(p));
-
+    pthread_mutex_unlock(&_pdu_lock);
+    
     //COBS decode failure
     if(!Protocol::cobsDecode(&(p.ohb), 23, p.sync))
       return -2;
@@ -145,19 +155,28 @@ namespace rfcom
     id = p.ID;
     index = p.index;
     memcpy(p_data, p.data, sizeof(p.data));
-  
+
+
+    pthread_mutex_lock(&_pdu_lock);
     delete _pdu_queue.front();
     _pdu_queue.pop();
-  
+    pthread_mutex_unlock(&_pdu_lock);
+    
     return 0;
   }
 
   bool Transceiver::retrieveNext(Packet& p)
   {
+    
+    pthread_mutex_lock(&_pdu_lock);
     if(_pdu_queue.empty())
-      return false;
+      {
+	pthread_mutex_unlock(&_pdu_lock);
+	return false;
+      }
     
     memcpy(&p, _pdu_queue.front(), sizeof(Packet));
+    pthread_mutex_unlock(&_pdu_lock);
     return true;
   }
   
