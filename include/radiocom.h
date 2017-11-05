@@ -16,7 +16,7 @@ namespace rfcom
   {
   public:
     Transceiver(byte2_t gen = CRC16_GEN_BUYPASS)
-      : _crc_gen(gen), _listen_stop(true){}
+      : _crc_gen(gen), _pdu_lock(PTHREAD_MUTEX_INITIALIZER), _listen_stop(true){}
     ~Transceiver();
 
     /**
@@ -36,6 +36,9 @@ namespace rfcom
     
     /**
        Create and start listener thread. Do nothing if listener thread has been created and running.
+       Listener will automatically push the received data into PDU queue.
+       If the received message is longer than sizeof(Packet), then listener will split it into pieces, then push.
+       i.e. [50-bit-long-data] -> [24-bit-long-data][24-bit-long-data][2-bit-long-data]
        @return
        0: Listener thread created or already running.
        others: same as pthread_create()
@@ -63,26 +66,43 @@ namespace rfcom
     int tryPopUnpack(byte1_t& id, byte2_t& index, byte1_t* p_data);
     
     /**
-       Retrieve and pop next packet from receiver PDU queue.
+       Extract the next packet from receiver PDU queue.
        @params
-       p: Retrieved packet
+       p: Extracted packet
        @return
-       boolean, indicates retrieved or not.
+       true: PDU queue is not empty and the nect Packet is extracted
+       false: PDU queue is empty. Nothing extracted.
      */
-    bool retrieveNext(Packet& p);
+    bool extractNext(Packet& p);
 
     /**
        pack up and send the packet.
        @params
-       id
-       index
-       p_data:starting position of data buffer.
+       id: packet id
+       index: packet index
+       p_data: starting position of data buffer.
        @return
        0: Success.
-       -1: invalid id.
+       -1: write() error. Turn on _COM_DEBUG to see error type
+       -2: invalid id.
      */
     int packSend(byte1_t id, byte2_t index, const byte1_t* p_data);
+
+    /**
+       Send raw character array.
+       @params
+       buf: charecter array.
+       len: length of array.
+       @return
+       0: Success.
+       -1: write() error. Turn on _COM_DEBUG to see error type.
+     */
+    int sendRaw(const byte1_t* buf, size_t len);
     
+    /**
+       Clear PDU queue.
+     */
+    void clearPDUQueue();
   private:
     int _s_fd;  //serial port file descripter
 

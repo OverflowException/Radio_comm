@@ -9,11 +9,7 @@ namespace rfcom
   Transceiver::~Transceiver()
   {
     termPort();
-    while(!_pdu_queue.empty())
-      {
-	delete _pdu_queue.front();
-	_pdu_queue.pop();
-      }
+    clearPDUQueue();
   }
   
   int Transceiver::initPort(const std::string& p_name)
@@ -41,6 +37,17 @@ namespace rfcom
     stopListener();
     close(_s_fd);
   }
+
+  void Transceiver::clearPDUQueue()
+  {
+    pthread_mutex_lock(&_pdu_lock);
+    while(!_pdu_queue.empty())
+      {
+	delete _pdu_queue.front();
+	_pdu_queue.pop();
+      }
+      pthread_mutex_unlock(&_pdu_lock);
+  }
   
   void* Transceiver::_listener_work(void* arg)
   {
@@ -62,10 +69,14 @@ namespace rfcom
 	    p_buf = new Packet;
 	    //memset(&p_buf, 0, sizeof(Packet));
 	    len = read(obj_ptr->_s_fd, (byte1_t*)p_buf, sizeof(Packet));
+	    
 #ifdef _COM_DEBUG
 	    std::cout << "Listener: " << std:: dec << len << " characters read" << std::endl;
 	    for(int offset = 0; offset < len; ++offset)
-	      std::cout << std::hex << int(*((byte1_t*)p_buf + offset)) << " ";
+	      std::cout << std::hex << int(*((byte1_t*)p_buf + offset)) << "\t";
+	    std::cout << "\n";
+	    for(int offset = 0; offset < len; ++offset)
+	      std::cout << char(*((byte1_t*)p_buf + offset)) << "\t";
 	    std::cout << std::endl;
 #endif
 	    
@@ -92,7 +103,6 @@ namespace rfcom
       }
     
     _listen_stop = false;
-    pthread_mutex_init(&_pdu_lock, NULL);
     //Create thread
     int ret;
     if((ret = pthread_create(&_listen_thread_t, NULL, _listener_work, this)) != 0)
@@ -165,9 +175,8 @@ namespace rfcom
     return 0;
   }
 
-  bool Transceiver::retrieveNext(Packet& p)
-  {
-    
+  bool Transceiver::extractNext(Packet& p)
+  {    
     pthread_mutex_lock(&_pdu_lock);
     if(_pdu_queue.empty())
       {
@@ -186,7 +195,7 @@ namespace rfcom
     size_t actual_len;
     //id invalid
     if(!(actual_len = lengthByID(id)))
-      return -1;
+      return -2;
   
     Packet p;
     p.sync = 0x00;
@@ -194,6 +203,7 @@ namespace rfcom
     p.index = index;
 
     memcpy(p.data, p_data, actual_len);
+    //Fill the unused memory in p.data with '\0'
     memset(p.data + actual_len, '\0', sizeof(p.data) - actual_len);
 
     //CRC
@@ -201,12 +211,20 @@ namespace rfcom
     //COBS
     Protocol::cobsEncode(&(p.ohb), 23, p.sync);
 
-    int len_sent = write(_s_fd, (byte1_t*)(&p), sizeof(p));
+    return sendRaw((byte1_t*)(&p), sizeof(Packet));
+  }
+
+  int Transceiver::sendRaw(const byte1_t* buf, size_t len)
+  {
+    int len_sent = write(_s_fd, buf, len);
     
 #ifdef _COM_DEBUG
-    std::cout << std::dec << len_sent << " characters sent " << std::endl;    
+    std::cout << "Tranceiver: " << std::dec << len_sent << " characters sent" << std::endl;    
 #endif
-    
+
+    if(len_sent < 0)
+      return -1;
+
     return 0;
   }
 }
