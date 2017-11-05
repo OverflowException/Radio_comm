@@ -6,6 +6,8 @@
 
 namespace rfcom
 {
+  //pthread_mutex_t Transceiver::_pdu_lock = PTHREAD_MUTEX_INITIALIZER;
+  
   Transceiver::~Transceiver()
   {
     termPort();
@@ -57,7 +59,7 @@ namespace rfcom
     pfds[0].fd = obj_ptr->_s_fd;
     pfds[0].events = POLLIN;
 
-    int len;
+    int len = 0;
     Packet* p_buf = NULL;
     while(!obj_ptr->_listen_stop)
       {
@@ -176,7 +178,7 @@ namespace rfcom
   }
 
   bool Transceiver::extractNext(Packet& p)
-  {    
+  {
     pthread_mutex_lock(&_pdu_lock);
     if(_pdu_queue.empty())
       {
@@ -184,7 +186,10 @@ namespace rfcom
 	return false;
       }
     
-    memcpy(&p, _pdu_queue.front(), sizeof(Packet));
+    p = *_pdu_queue.front();
+    delete _pdu_queue.front();
+    _pdu_queue.pop();
+    
     pthread_mutex_unlock(&_pdu_lock);
     return true;
   }

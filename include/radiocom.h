@@ -16,7 +16,7 @@ namespace rfcom
   {
   public:
     Transceiver(byte2_t gen = CRC16_GEN_BUYPASS)
-      : _crc_gen(gen), _pdu_lock(PTHREAD_MUTEX_INITIALIZER), _listen_stop(true){}
+      : _crc_gen(gen), _listen_stop(true){pthread_mutex_init(&_pdu_lock, NULL);}
     ~Transceiver();
 
     /**

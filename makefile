@@ -6,8 +6,10 @@ RAW_TRANS_TARGET = bin/raw_tranceiver
 REPEATED_RAW_TRANS_TARGET = bin/repeated_raw_tranceiver
 
 CXX = g++
-CFLAGS = -Wall -c -O2 -std=c++11
+CFLAGS = -Wall -c -O2  -std=c++11
 LFLAGS = -Wall -pthread
+DEBUG = 
+
 COMPILE = $(CXX) $(CFLAGS) $^ -o $@
 LINK = $(CXX) $(LFLAGS) $^ -o $@
 
@@ -31,7 +33,7 @@ $(RAW_TRANS_TARGET): build/raw_transceiver.o build/protocol.o build/radiocom.o
 build/raw_transceiver.o: tests/raw_transceiver.cpp
 	$(COMPILE)
 build/radiocom.o: src/radiocom.cpp
-	$(COMPILE) -D _COM_DEBUG	#debug multithread communication
+	$(COMPILE) $(DEBUG)	#debug multithread communication
 
 $(REPEATED_RAW_TRANS_TARGET): build/repeated_raw_transceiver.o build/protocol.o build/radiocom.o
 	$(LINK)
@@ -43,6 +45,6 @@ $(shell   mkdir -p bin)
 $(shell	  mkdir -p build)
 
 clean:
-	rm -fvr bin/*
+	#rm -fvr bin/*
 	rm -fvr build/*
 

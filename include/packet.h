@@ -2,6 +2,9 @@
 #define _PACKET
 
 #include <cstdint>
+#include <iostream>
+#include <iterator>
+#include <algorithm>
 
 namespace rfcom
 {  
@@ -56,6 +59,15 @@ namespace rfcom
 	    return 0;
 	  }
       }
+  }
+
+  /**
+   */
+  static void packetOut(const Packet& p, std::ostream& os, std::string delim = " ")
+  {
+    os << std::hex;
+    auto os_it = std::ostream_iterator<int>(os, delim.c_str());
+    std::copy((byte1_t*)&p, (byte1_t*)&p + sizeof(Packet), os_it);
   }
 }
 
