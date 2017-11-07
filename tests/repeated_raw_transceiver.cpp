@@ -7,6 +7,7 @@ volatile bool detector_end_flag = false;
 volatile bool repeater_end_flag = false;
 volatile bool extract_flag = false;
 
+//Anything 
 void* keyboard_detector(void* arg)
 {
   string input;
@@ -28,7 +29,7 @@ void* repeater(void* arg)
   string message = "123456789012345678901234567890123456789012345678901234567890";
   while(!repeater_end_flag)
     {
-      usleep(500000);
+      usleep(100000);
       t_ptr->sendRaw((byte1_t*)message.c_str(), message.size());
     }
 
@@ -41,10 +42,12 @@ int main(int argc, char** argv)
     throw runtime_error("A serial port name is needed.");
   
   Transceiver t;
-
-  if(t.initPort(argv[1]) < 0)
+  int initstatus = t.initPort(argv[1]);
+  if(initstatus == -2)
+    throw runtime_error("Error opening log");
+  if(initstatus == -1)
     throw runtime_error("Error opening serial port " + string(argv[1]));
-  
+    
   t.startListener();
 
   //Create input monitor thread

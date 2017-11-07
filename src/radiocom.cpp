@@ -3,27 +3,48 @@
 #include <fcntl.h>
 #include <sys/poll.h>
 #include "../include/radiocom.h"
+#include "../include/logtime.h"
 
 namespace rfcom
 {
   //pthread_mutex_t Transceiver::_pdu_lock = PTHREAD_MUTEX_INITIALIZER;
+  Transceiver::Transceiver(byte2_t gen)
+    : _crc_gen(gen), _listen_stop(true){pthread_mutex_init(&_pdu_lock, NULL);}
   
+
   Transceiver::~Transceiver()
   {
     termPort();
     clearPDUQueue();
+    pthread_mutex_destroy(&_pdu_lock);
   }
   
-  int Transceiver::initPort(const std::string& p_name)
+  int Transceiver::initPort(const std::string& p_name, const std::string& log_name)
   {
-    //Fail to open
+    //Valid log name
+    if(log_name != "")
+      {
+	//will rewrite logs
+	_fs_log.open(log_name, std::ios::trunc);	
+	//Fails to open file
+	if(!_fs_log.is_open())
+	  return -2;
+      }
+    
+    //Fails to open serial port
     if((_s_fd = open(p_name.c_str(), O_RDWR | O_NOCTTY | O_NDELAY)) < 0)
-      return _s_fd;
+      {
+#ifdef _COM_DEBUG
+	std::cout << "Tranceiver: open port " << p_name <<
+	  " error code " << std::dec << _s_fd << std::endl;
+#endif	
+	return -1;
+      }
 
     struct termios ttyS_io;
     bzero(&ttyS_io, sizeof(ttyS_io));
-    cfsetispeed(&ttyS_io, B115200);
-    cfsetospeed(&ttyS_io, B115200);
+    cfsetispeed(&ttyS_io, B38400); //B115200
+    cfsetospeed(&ttyS_io, B38400);
     ttyS_io.c_cflag = CS8 | CLOCAL | CREAD;
     ttyS_io.c_iflag = IGNPAR;
     ttyS_io.c_oflag = 0;
@@ -38,6 +59,7 @@ namespace rfcom
   {
     stopListener();
     close(_s_fd);
+    _fs_log.close();
   }
 
   void Transceiver::clearPDUQueue()
@@ -65,10 +87,11 @@ namespace rfcom
       {
 	//Only one file, pollin, 500ms block timeout.
 	//A higher block timeout will result in less loops
-	//But main thread will spend more time waiting for join.
+	//But main thread will spend more time waiting to join.
 	if(poll(pfds, 1, 500) > 0)
 	  {
 	    p_buf = new Packet;
+	    memset(p_buf, 0, sizeof(Packet));
 	    //memset(&p_buf, 0, sizeof(Packet));
 	    len = read(obj_ptr->_s_fd, (byte1_t*)p_buf, sizeof(Packet));
 	    
@@ -81,7 +104,10 @@ namespace rfcom
 	      std::cout << char(*((byte1_t*)p_buf + offset)) << "\t";
 	    std::cout << std::endl;
 #endif
+	    //Record this event into log
+	    obj_ptr->_new_log_entry((byte1_t*)p_buf, sizeof(Packet), LOG_R);
 	    
+	    //push packet into PDU queue
 	    pthread_mutex_lock(&obj_ptr->_pdu_lock);
 	    obj_ptr->_pdu_queue.push(p_buf);
 	    pthread_mutex_unlock(&obj_ptr->_pdu_lock);
@@ -91,6 +117,28 @@ namespace rfcom
     std::cout << "Listener: Request to terminate..." << std::endl;
 #endif
     pthread_exit(NULL);
+  }
+
+  int Transceiver::_new_log_entry(const byte1_t* buf, size_t len, int entry_type)
+  {
+    if(!_fs_log.is_open())
+      return -1;
+
+    if(entry_type == LOG_R)
+      _fs_log << "RE : ";
+
+    if(entry_type == LOG_SS)
+      _fs_log << "SS : ";
+
+    if(entry_type == LOG_SF)
+      _fs_log << "SF : ";
+    
+    _fs_log << getTimeStr();
+    _fs_log << "\t";
+    for(size_t index = 0; index < len; ++index)
+      _fs_log << std::hex << int(buf[index]) << " ";
+    _fs_log << std::endl;
+    return 0;
   }
   
   int Transceiver::startListener()
@@ -185,7 +233,7 @@ namespace rfcom
 	pthread_mutex_unlock(&_pdu_lock);
 	return false;
       }
-    
+
     p = *_pdu_queue.front();
     delete _pdu_queue.front();
     _pdu_queue.pop();
@@ -215,7 +263,7 @@ namespace rfcom
     p.checksum = Protocol::crc16Gen(&(p.ID), 19, _crc_gen);
     //COBS
     Protocol::cobsEncode(&(p.ohb), 23, p.sync);
-
+    
     return sendRaw((byte1_t*)(&p), sizeof(Packet));
   }
 
@@ -228,8 +276,12 @@ namespace rfcom
 #endif
 
     if(len_sent < 0)
-      return -1;
+      {
+	_new_log_entry(buf, len, LOG_SF);
+	return -1;
+      }
 
+    _new_log_entry(buf, len, LOG_SS);    
     return 0;
   }
 }

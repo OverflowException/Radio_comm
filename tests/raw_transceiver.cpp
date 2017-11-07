@@ -22,9 +22,12 @@ int main(int argc, char** argv)
 {
   if(argc != 2)
     throw runtime_error("A serial port name is needed.");
-  
+
   Transceiver t;
-  if(t.initPort(argv[1]) < 0)
+  int initstatus = t.initPort(argv[1], "log");
+  if(initstatus == -2)
+    throw runtime_error("Error opening log");
+  if(initstatus == -1)
     throw runtime_error("Error opening serial port " + string(argv[1]));
   
   t.startListener();

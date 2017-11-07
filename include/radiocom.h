@@ -3,6 +3,7 @@
 #include "protocol.h"
 #include <queue>
 #include <iostream>
+#include <fstream>
 #include <iterator>
 #include <algorithm>
 #include <pthread.h>
@@ -15,19 +16,21 @@ namespace rfcom
   class Transceiver
   {
   public:
-    Transceiver(byte2_t gen = CRC16_GEN_BUYPASS)
-      : _crc_gen(gen), _listen_stop(true){pthread_mutex_init(&_pdu_lock, NULL);}
+    Transceiver(byte2_t gen = CRC16_GEN_BUYPASS);
     ~Transceiver();
 
     /**
-      Initialize serial port.
+      Initialize serial port and packet log file.
       *The configuration of serial port is written in source code.
       @param
       p_name: port name
+      log_name: log file name. By default the transceiver will not write log.
       @return
-      Same as open()
+      0: Successfully initialized serial port and opened log file.
+      -1: Fail to initialize serial port. Enable _COM_DEBUG to see details.
+      -2: Fail to open log file.
      */
-    int initPort(const std::string& p_name);
+    int initPort(const std::string& p_name, const std::string& log_name = "");
 
     /**
        Terminate corresponding serial port. Will automatically stop listener.
@@ -105,7 +108,8 @@ namespace rfcom
     void clearPDUQueue();
   private:
     int _s_fd;  //serial port file descripter
-
+    std::ofstream _fs_log; //output log file stream
+    
     byte2_t _crc_gen;  //CRC16 generator polynomial
     
     std::queue<Packet*> _pdu_queue;  //A queue of protocal data units. Listener.
@@ -114,10 +118,23 @@ namespace rfcom
     pthread_t _listen_thread_t;
     volatile bool _listen_stop; //listener thread stop flag. Listener checks this flag.
     
-    int _init_port();
     inline int _term_port(){ return close(_s_fd); }
     static void* _listener_work(void* arg);
-    
+
+    /**
+       Add new entry to log file
+       @params
+       buf: content to be written in log file
+       len: length of buffer
+       entry_type: 0 for received packets, 1 for successfully sent packets, 2 for failed-to-send packets
+       @return
+       0: Success
+       -1: Log file not available
+     */
+    #define LOG_R  0
+    #define LOG_SS 1
+    #define LOG_SF 2
+    int _new_log_entry(const byte1_t* buf, size_t len,  int entry_type);
   };
 }
 #endif

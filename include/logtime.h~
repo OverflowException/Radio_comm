@@ -1,0 +1,28 @@
+/*#include <ctime>
+  #include <chrono>*/
+#include <string>
+#include <ctime>
+
+
+namespace rfcom
+{
+  std::string getTimeStr()
+    {
+timeval curTime;
+      gettimeofday(&curTime, NULL);
+      int milli = curTime.tv_usec / 1000;
+
+      char buffer [80];
+      strftime(buffer, 80, "%Y-%m-%d %H:%M:%S", localtime(&curTime.tv_sec));
+
+      char currentTime[84] = "";
+      sprintf(currentTime, "%s:%d", buffer, milli);
+
+
+/*using std::chrono::system_clock;
+    system_clock::time_point current = system_clock::now();
+    std::time_t tt;
+    tt = system_clock::to_time_t(current);
+    return std::string(ctime(&tt));*/
+    }
+}
