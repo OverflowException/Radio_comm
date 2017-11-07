@@ -1,9 +1,9 @@
 #include <cstring>
+#include <sstream>
 #include <termios.h>
 #include <fcntl.h>
 #include <sys/poll.h>
 #include "../include/radiocom.h"
-#include "../include/logtime.h"
 
 namespace rfcom
 {
@@ -19,7 +19,7 @@ namespace rfcom
     pthread_mutex_destroy(&_pdu_lock);
   }
   
-  int Transceiver::initPort(const std::string& p_name, const std::string& log_name)
+  int Transceiver::initPort(const std::string& p_name, const speed_t& baud, const std::string& log_name)
   {
     //Valid log name
     if(log_name != "")
@@ -43,8 +43,8 @@ namespace rfcom
 
     struct termios ttyS_io;
     bzero(&ttyS_io, sizeof(ttyS_io));
-    cfsetispeed(&ttyS_io, B38400); //B115200
-    cfsetospeed(&ttyS_io, B38400);
+    cfsetispeed(&ttyS_io, baud); //B115200
+    cfsetospeed(&ttyS_io, baud);
     ttyS_io.c_cflag = CS8 | CLOCAL | CREAD;
     ttyS_io.c_iflag = IGNPAR;
     ttyS_io.c_oflag = 0;
@@ -81,6 +81,7 @@ namespace rfcom
     pfds[0].fd = obj_ptr->_s_fd;
     pfds[0].events = POLLIN;
 
+    timeval r_time; //packet receive time 
     int len = 0;
     Packet* p_buf = NULL;
     while(!obj_ptr->_listen_stop)
@@ -90,6 +91,7 @@ namespace rfcom
 	//But main thread will spend more time waiting to join.
 	if(poll(pfds, 1, 500) > 0)
 	  {
+	    gettimeofday(&r_time, NULL); //Take a snapshot of current time
 	    p_buf = new Packet;
 	    memset(p_buf, 0, sizeof(Packet));
 	    //memset(&p_buf, 0, sizeof(Packet));
@@ -104,8 +106,15 @@ namespace rfcom
 	      std::cout << char(*((byte1_t*)p_buf + offset)) << "\t";
 	    std::cout << std::endl;
 #endif
+	    //Fail to read
+	    if(len < 0)
+	      {
+		obj_ptr->_new_log_entry(r_time, (byte1_t*)p_buf, sizeof(Packet), LOG_RF);
+		continue;
+	      }
+	    
 	    //Record this event into log
-	    obj_ptr->_new_log_entry((byte1_t*)p_buf, sizeof(Packet), LOG_R);
+	    obj_ptr->_new_log_entry(r_time, (byte1_t*)p_buf, sizeof(Packet), LOG_RS);
 	    
 	    //push packet into PDU queue
 	    pthread_mutex_lock(&obj_ptr->_pdu_lock);
@@ -119,26 +128,45 @@ namespace rfcom
     pthread_exit(NULL);
   }
 
-  int Transceiver::_new_log_entry(const byte1_t* buf, size_t len, int entry_type)
+  int Transceiver::_new_log_entry(const timeval& t, const byte1_t* buf, size_t len, int entry_type)
   {
     if(!_fs_log.is_open())
       return -1;
 
-    if(entry_type == LOG_R)
-      _fs_log << "RE : ";
-
+    if(entry_type == LOG_RS)
+      _fs_log << "RS : ";
+    
+    if(entry_type == LOG_RF)
+      _fs_log << "RF : ";
+    
     if(entry_type == LOG_SS)
       _fs_log << "SS : ";
 
     if(entry_type == LOG_SF)
       _fs_log << "SF : ";
     
-    _fs_log << getTimeStr();
+    _fs_log << _get_time_str(t);
     _fs_log << "\t";
     for(size_t index = 0; index < len; ++index)
       _fs_log << std::hex << int(buf[index]) << " ";
     _fs_log << std::endl;
     return 0;
+  }
+
+  std::string Transceiver::_get_time_str(const timeval& t)
+  {
+    int milli = t.tv_usec / 1000;
+
+    char buffer [80];
+    strftime(buffer, 80, "%Y-%m-%d %H:%M:%S", localtime(&t.tv_sec));
+
+    std::ostringstream oss;
+    oss << buffer;
+    oss << ":" << milli;
+      
+    char currentTime[84] = "";
+    sprintf(currentTime, "%s:%d", buffer, milli);
+    return oss.str();
   }
   
   int Transceiver::startListener()
@@ -269,7 +297,9 @@ namespace rfcom
 
   int Transceiver::sendRaw(const byte1_t* buf, size_t len)
   {
+    timeval s_time;  //packet send time
     int len_sent = write(_s_fd, buf, len);
+    gettimeofday(&s_time, NULL);  //Take a snapshot of surrent time
     
 #ifdef _COM_DEBUG
     std::cout << "Tranceiver: " << std::dec << len_sent << " characters sent" << std::endl;    
@@ -277,11 +307,11 @@ namespace rfcom
 
     if(len_sent < 0)
       {
-	_new_log_entry(buf, len, LOG_SF);
+	_new_log_entry(s_time, buf, len, LOG_SF);
 	return -1;
       }
 
-    _new_log_entry(buf, len, LOG_SS);    
+    _new_log_entry(s_time, buf, len, LOG_SS);
     return 0;
   }
 }
