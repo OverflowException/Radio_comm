@@ -94,7 +94,7 @@ namespace rfcom
        -1: write() error. Turn on _COM_DEBUG to see error type
        -2: invalid id.
      */
-    int packSend(byte1_t id, byte2_t index, const byte1_t* p_data);
+    int packSend(byte1_t id, const byte1_t* p_data);
 
     /**
        Send raw character array.
@@ -116,7 +116,8 @@ namespace rfcom
     std::ofstream _fs_packet_log; //output packet log file stream
     
     byte2_t _crc_gen;  //CRC16 generator polynomial
-
+    byte2_t _send_index;
+    
     std::queue<byte1_t> _byte_stream;  //The stream of received bytes. 
     pthread_mutex_t _byte_stream_lock; //Correspoding mutex lock.
     
@@ -164,13 +165,11 @@ namespace rfcom
        len: length of buffer
        entry_type: 0 for received packets, 1 for successfully sent packets, 2 for failed-to-send packets
        @return
-       0: Success
-       -1: Log file not available
      */
     #define LOG_RX  0
     #define LOG_SS  1
     #define LOG_SF  2
-    int _new_log_entry(const timeval& t, const byte1_t* buf, size_t len, int entry_type);
+    void _new_log_entry(const timeval& t, const byte1_t* buf, size_t len, int entry_type);
 
 
     

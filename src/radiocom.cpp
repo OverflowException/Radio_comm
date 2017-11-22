@@ -20,7 +20,7 @@ namespace rfcom
 {
   //pthread_mutex_t Transceiver::_pdu_stream_lock = PTHREAD_MUTEX_INITIALIZER;
   Transceiver::Transceiver(byte2_t gen)
-    : _crc_gen(gen), _listen_stop(true), _divide_stop(true)
+    : _crc_gen(gen), _send_index(0), _listen_stop(true), _divide_stop(true)
   {
     pthread_mutex_init(&_byte_stream_lock, NULL);
     pthread_mutex_init(&_pdu_stream_lock, NULL);
@@ -375,11 +375,8 @@ namespace rfcom
     pthread_exit(NULL);
   }
   
-  int Transceiver::_new_log_entry(const timeval& t, const byte1_t* buf, size_t len, int entry_type)
+  void Transceiver::_new_log_entry(const timeval& t, const byte1_t* buf, size_t len, int entry_type)
   {
-    if(!_fs_packet_log.is_open())
-      return -1;
-
     if(entry_type == LOG_RX)
       _fs_packet_log << "RX : ";
     
@@ -394,7 +391,6 @@ namespace rfcom
     for(size_t index = 0; index < len; ++index)
       _fs_packet_log << std::hex << int(buf[index]) << " ";
     _fs_packet_log << std::endl;
-    return 0;
   }
 
   std::string Transceiver::_get_time_str(const timeval& t)
@@ -440,20 +436,20 @@ namespace rfcom
     memcpy(p_data, p.data, sizeof(p.data));
 
 
-    pthread_mutex_lock(&_pdu_stream_lock);
+    LOCK_PDU(this);
     delete _pdu_stream.front();
     _pdu_stream.pop();
-    pthread_mutex_unlock(&_pdu_stream_lock);
+    UNLOCK_PDU(this);
     
     return 0;
   }
 
   bool Transceiver::extractNext(Packet& p)
   {
-    pthread_mutex_lock(&_pdu_stream_lock);
+    LOCK_PDU(this);
     if(_pdu_stream.empty())
       {
-	pthread_mutex_unlock(&_pdu_stream_lock);
+	UNLOCK_PDU(this);
 	return false;
       }
 
@@ -461,12 +457,12 @@ namespace rfcom
     delete _pdu_stream.front();
     _pdu_stream.pop();
     
-    pthread_mutex_unlock(&_pdu_stream_lock);
+    UNLOCK_PDU(this);
     return true;
   }
   
   
-  int Transceiver::packSend(byte1_t id, byte2_t index, const byte1_t* p_data)
+  int Transceiver::packSend(byte1_t id, const byte1_t* p_data)
   {
     size_t actual_len;
     //id invalid
@@ -476,7 +472,7 @@ namespace rfcom
     Packet p;
     p.sync = 0x00;
     p.ID = id;
-    p.index = index;
+    p.index = _send_index++;
 
     memcpy(p.data, p_data, actual_len);
     //Fill the unused memory in p.data with '\0'

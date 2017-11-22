@@ -35,30 +35,11 @@ namespace rfcom
   */
   static size_t lengthByID(byte1_t id)
   {
-    //Status or message
-    if(id & 0xc0)
-      return 16;
-    //Measured data
-    else
-      {
-	switch(id & 0x3f)
-	  {
-	    //acc/gyr from either IMUs
-	  case 0x00:
-	  case 0x10:
-	    return 12;
+    //Command
+    if(id == 0xc0)
+      return 1;
 
-	    //mag/time from IMU_1
-	  case 0x01:
-	    return 10;
-	    //mag/imp/time from IMU_2
-	  case 0x11:
-	    return 12;
-	    //Invalid id
-	  default:
-	    return 0;
-	  }
-      }
+    return 0;
   }
 
   /**
