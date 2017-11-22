@@ -24,20 +24,22 @@ int main(int argc, char** argv)
     throw runtime_error("A serial port name is needed.");
 
   Transceiver t;
-  int initstatus = t.initPort(argv[1], "log");
-  if(initstatus == -2)
-    throw runtime_error("Error opening log");
+  int initstatus = t.initPort(argv[1], B38400, "raw_log", "packet_log");
   if(initstatus == -1)
     throw runtime_error("Error opening serial port " + string(argv[1]));
+  if(initstatus == -2)
+    throw runtime_error("Error opening raw_log");
+  if(initstatus == -3)
+    throw runtime_error("Error opening packet_log");
   
-  t.startListener();
+  t.startReceiving();
 
   pthread_t input_thread_t;
   pthread_create(&input_thread_t, NULL, input_processor, &t);
 
   pthread_join(input_thread_t, NULL);
   
-  t.stopListener();
+  t.stopReceiving();
   t.termPort();
   
   return 0;
