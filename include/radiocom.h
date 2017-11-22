@@ -1,6 +1,7 @@
 #ifndef _RADIOCOM
 #define _RADIOCOM
 #include "protocol.h"
+#include "fsm.h"
 #include <queue>
 #include <iostream>
 #include <fstream>
@@ -19,40 +20,44 @@ namespace rfcom
   public:
     Transceiver(byte2_t gen = CRC16_GEN_BUYPASS);
     ~Transceiver();
-
+    
     /**
-      Initialize serial port and packet log file.
+      Initialize serial port , open raw log file and packet log file.
       @param
       p_name: port name
-      log_name: log file name. By default the transceiver will not write log.
+      raw_log_name: raw log file name. By default the transceiver will not write raw log.
+      packet_log_name: packet log file name. By default the tranceiver will not write packet log.
       @return
       0: Successfully initialized serial port and opened log file.
       -1: Fail to initialize serial port. Enable _COM_DEBUG to see details.
-      -2: Fail to open log file.
+      -2: Fail to open raw log file.
+      -3: Fail to open packet log file.
      */
-    int initPort(const std::string& p_name, const speed_t& baud, const std::string& log_name = "");
+    int initPort(const std::string& p_name, const speed_t& baud,
+		 const std::string& raw_log_name = "", const std::string& packet_log_name = "");
 
     /**
-       Terminate corresponding serial port. Will automatically stop listener.
+       Terminate corresponding serial port. Will invoke stopReceiving().
      */
     void termPort();
     
     /**
-       Create and start listener thread. Do nothing if listener thread has been created and running.
-       Listener will automatically push the received data into PDU queue.
-       If the received message is longer than sizeof(Packet), then listener will split it into pieces, then push.
-       i.e. [50-bit-long-data] -> [24-bit-long-data][24-bit-long-data][2-bit-long-data]
+       Create and start listener thread and divider thread.
+       Do nothing if corresponding thread is already up and running.
        @return
-       0: Listener thread created or already running.
-       others: same as pthread_create()
+       0: Both listener thread and divider thread is created or already running.
+       -1: listener thread fail to start.
+       -2: divider thread fail to start.
+       Turn on _COM_DEBUG to see error type.
      */
-    int startListener();
+    int startReceiving();
 
     /**
-       Stop Listener thread. Do nothing if listener thread was never created.
-       Will wait for listener thread to join its parent thread.
+       Stop Listener thread and divider thread. 
+       Do nothing if corresponding thread was never created.
+       Will wait for both threads to join its parent thread.
      */
-    void stopListener();
+    void stopReceiving();
     
     /**
        Try to pop the next packet from queue and unpack it.
@@ -101,26 +106,57 @@ namespace rfcom
        -1: write() error. Turn on _COM_DEBUG to see error type.
      */
     int sendRaw(const byte1_t* buf, size_t len);
-    
-    /**
-       Clear PDU queue.
-     */
-    void clearPDUQueue();
+
+    void clearByteStream();
+    void clearPDUStream();
+    void clearSyncTimeStream();
   private:
     int _s_fd;  //serial port file descripter
-    std::ofstream _fs_log; //output log file stream
+    std::ofstream _fs_raw_log;    //output raw log file stream
+    std::ofstream _fs_packet_log; //output packet log file stream
     
     byte2_t _crc_gen;  //CRC16 generator polynomial
+
+    std::queue<byte1_t> _byte_stream;  //The stream of received bytes. 
+    pthread_mutex_t _byte_stream_lock; //Correspoding mutex lock.
     
-    std::queue<Packet*> _pdu_queue;  //A queue of protocal data units. Listener.
-    pthread_mutex_t _pdu_lock;  //PDU queue mutex lock
-    
+    std::queue<Packet*> _pdu_stream;  //The stream of protocal data units.
+    pthread_mutex_t _pdu_stream_lock;  //Correspoding mutex lock.
+
+    std::queue<timeval> _synctime_stream; //The stream of sync time stamp
+    pthread_mutex_t _synctime_stream_lock; //Correspoding mutex lock.
+
     pthread_t _listen_thread_t;
-    volatile bool _listen_stop; //listener thread stop flag. Listener checks this flag.
+    volatile bool _listen_stop; //Listener thread stop flag. Listener thread will check this flag.
+    pthread_t _divide_thread_t;
+    volatile bool _divide_stop; //Divider thread stop flag. Divider thread will check this flag.
 
-    inline int _term_port(){ return close(_s_fd); }
+    //This is a finite state machine, used to detect packets, Including corrupted ones.
+    //char --- state index type
+    //bool --- state output type
+    //bool --- transition condition type
+    fsm::FSM<char, bool, bool> _packet_detector;
+
+    
+    /**
+       Initialize the packet detector, which is a finite state machine.
+       sizeof(Packet) + 1 states, including a init state.
+     */
+    void _init_packet_detector();
+
+    //inline int _term_port(){ return close(_s_fd); }
+    /**
+       Read from serial port, push received byte(s) to byte stream.
+     */
     static void* _listener_work(void* arg);
+    
+    /**
+       Read from byte stream and push packets to PDU stream.
+     */
+    static void* _divider_work(void* arg);
 
+
+    
     /**
        Add new entry to log file
        @params
@@ -131,12 +167,13 @@ namespace rfcom
        0: Success
        -1: Log file not available
      */
-    #define LOG_RS  0
-    #define LOG_RF  1
-    #define LOG_SS  2
-    #define LOG_SF  3
+    #define LOG_RX  0
+    #define LOG_SS  1
+    #define LOG_SF  2
     int _new_log_entry(const timeval& t, const byte1_t* buf, size_t len, int entry_type);
 
+
+    
     /**
        Convert a timeval struct into string
        @param
