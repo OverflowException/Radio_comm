@@ -37,7 +37,7 @@ namespace rfcom
   {
     //Command
     if(id == 0xc0)
-      return 1;
+      return 2;
 
     return 0;
   }

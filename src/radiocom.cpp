@@ -361,13 +361,15 @@ namespace rfcom
 	//FSM is at x state, A complete packet detected.
 	if(packet_detector_ref.getCurrOutput())
 	  {
+	    //New packet log entry
+	    //This statement must be written before 'pdu_stream_ref.push(p_buf);'
+	    //Because queue container will have memory block relocation.
+	    obj_ptr->_new_log_entry(t_buf, (byte1_t*)p_buf, sizeof(Packet), LOG_RX);
+	    
 	    //push pdu stream
 	    LOCK_PDU(obj_ptr);
-	    pdu_stream_ref.push(p_buf);
+	    pdu_stream_ref.push(p_buf); 
 	    UNLOCK_PDU(obj_ptr);
-
-	    //New packet log entry
-	    obj_ptr->_new_log_entry(t_buf, (byte1_t*)p_buf, sizeof(Packet), LOG_RX);
 
 	    //New packet buffer
 	    p_buf = new Packet;
@@ -381,7 +383,8 @@ namespace rfcom
 	//Lock it for next round 'while' statement
 	LOCK_BYTE(obj_ptr);
       }
-
+    UNLOCK_BYTE(obj_ptr);
+    
     //If there is still some leftover bytes in p_buf, take it as a whole packet.
     if(packet_detector_ref.getCurrState() != 'x')
       {
