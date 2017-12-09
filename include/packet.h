@@ -43,6 +43,12 @@ namespace rfcom
   }
 
   /**
+     Output every byte of packet, in hex
+     @params
+     p: packet
+     os: output stream
+     delim: deliminator between bytes
+     @return
    */
   static void packetOut(const Packet& p, std::ostream& os, std::string delim = " ")
   {

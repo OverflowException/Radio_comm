@@ -325,7 +325,7 @@ namespace rfcom
     memset(byte_pos, 0, sizeof(Packet));
 
     LOCK_BYTE(obj_ptr);
-    //Even when _divide_stop is set, still will work until byte stream is empty
+    //Even when _divide_stop is set, will still work until byte stream is empty
     while(!obj_ptr->_divide_stop || !byte_stream_ref.empty())
       {
 	if(byte_stream_ref.empty())
@@ -362,9 +362,24 @@ namespace rfcom
 	if(packet_detector_ref.getCurrOutput())
 	  {
 	    //New packet log entry
-	    //This statement must be written before 'pdu_stream_ref.push(p_buf);'
-	    //Because queue container will have memory block relocation.
+	    /*'_new_log_entry' function must be invoked before 
+	      
+	         LOCK_PDU(obj_ptr);
+	         pdu_stream_ref.push(p_buf); 
+	         UNLOCK_PDU(obj_ptr);
+	      
+	      Because if it is invoked after these statements, a 'tryPopUnpack()' function may be called by other threads
+	      between these two statements, shown below, 
+	         
+	         UNLOCK_PDU(obj_ptr);
+		 [Some other thread might call tryPopUnpack()]
+		 obj_ptr->_new_log_entry(t_buf, (byte1_t*)p_buf, sizeof(Packet), LOG_RX);
+
+	      if this happens, the memory block where p_buf is pointing to might be deleted. This will result in a bunch of non-sense characters
+	      in packets_log.
+	    */
 	    obj_ptr->_new_log_entry(t_buf, (byte1_t*)p_buf, sizeof(Packet), LOG_RX);
+
 	    
 	    //push pdu stream
 	    LOCK_PDU(obj_ptr);
@@ -385,16 +400,16 @@ namespace rfcom
       }
     UNLOCK_BYTE(obj_ptr);
     
-    //If there is still some leftover bytes in p_buf, take it as a whole packet.
+    //If there are still some leftover bytes in p_buf, take it as a whole packet.
     if(packet_detector_ref.getCurrState() != 'x')
       {
+	//New packet log entry
+	obj_ptr->_new_log_entry(t_buf, (byte1_t*)p_buf, sizeof(Packet), LOG_RX);
+	
 	//push pdu stream
 	LOCK_PDU(obj_ptr);
 	pdu_stream_ref.push(p_buf);
 	UNLOCK_PDU(obj_ptr);
-
-	//New packet log entry
-	obj_ptr->_new_log_entry(t_buf, (byte1_t*)p_buf, sizeof(Packet), LOG_RX);
       }
     else
       delete p_buf;

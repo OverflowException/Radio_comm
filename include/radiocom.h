@@ -148,7 +148,6 @@ namespace rfcom
      */
     void _init_packet_detector();
 
-    //inline int _term_port(){ return close(_s_fd); }
     /**
        Read from serial port, push received byte(s) to byte stream.
      */
