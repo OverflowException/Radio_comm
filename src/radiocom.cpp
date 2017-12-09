@@ -332,6 +332,7 @@ namespace rfcom
 	  {
 	    UNLOCK_BYTE(obj_ptr);
 	    usleep(1000);
+	    LOCK_BYTE(obj_ptr);
 	    continue;
 	  }
 
