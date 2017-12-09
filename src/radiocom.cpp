@@ -3,6 +3,7 @@
 #include <termios.h>
 #include <fcntl.h>
 #include <sys/poll.h>
+#include <unistd.h>
 #include "../include/radiocom.h"
 
 #define LOCK_BYTE(X)         pthread_mutex_lock(&(X)->_byte_stream_lock)
@@ -20,7 +21,7 @@ namespace rfcom
 {
   //pthread_mutex_t Transceiver::_pdu_stream_lock = PTHREAD_MUTEX_INITIALIZER;
   Transceiver::Transceiver(byte2_t gen)
-    : _crc_gen(gen), _send_index(0), _listen_stop(true), _divide_stop(true)
+    : _port_connected(false), _crc_gen(gen), _send_index(0), _listen_stop(true), _divide_stop(true)
   {
     pthread_mutex_init(&_byte_stream_lock, NULL);
     pthread_mutex_init(&_pdu_stream_lock, NULL);
@@ -69,7 +70,23 @@ namespace rfcom
 #ifdef _COM_DEBUG
 	std::cout << "Transceiver: initPort() invoked" << std::endl;
 #endif
-	
+
+    //Fails to open serial port
+    if((_s_fd = open(p_name.c_str(), O_RDWR | O_NOCTTY | O_NDELAY)) < 0)
+      {
+#ifdef _COM_DEBUG
+	std::cout << "Transceiver: open port " << p_name <<
+	  " error code " << std::dec << _s_fd << std::endl;
+#endif	
+	return -1;
+      }
+
+    if(_port_name != p_name)
+      _port_name = p_name; //Set private port name. For reconnection when disconnected
+    if(_baud_rate != baud)
+      _baud_rate = baud;   //Set private baud rate. For reconnection when disconnected
+    _port_connected = true;
+    
     //Valid raw log name
     if(raw_log_name != "")
       {
@@ -90,19 +107,10 @@ namespace rfcom
 	  return -3;
       }
     
-    //Fails to open serial port
-    if((_s_fd = open(p_name.c_str(), O_RDWR | O_NOCTTY | O_NDELAY)) < 0)
-      {
-#ifdef _COM_DEBUG
-	std::cout << "Transceiver: open port " << p_name <<
-	  " error code " << std::dec << _s_fd << std::endl;
-#endif	
-	return -1;
-      }
 
     struct termios ttyS_io;
     bzero(&ttyS_io, sizeof(ttyS_io));
-    cfsetispeed(&ttyS_io, baud); //B115200
+    cfsetispeed(&ttyS_io, baud);
     cfsetospeed(&ttyS_io, baud);
     ttyS_io.c_cflag = CS8 | CLOCAL | CREAD;
     ttyS_io.c_iflag = IGNPAR;
@@ -248,6 +256,24 @@ namespace rfcom
     byte1_t b_buf;
     while(!obj_ptr->_listen_stop)
       {
+	//If the serial port is accidentally disconnected 
+	if(access(obj_ptr->_port_name.c_str(), F_OK) < 0)
+	  {
+	    obj_ptr->_port_connected = false;
+	    continue;
+	  }
+
+	//Just been reconnected
+	if(obj_ptr->_port_connected == false)
+	  {
+	    //Try to init port but fail
+	    if(obj_ptr->initPort(obj_ptr->_port_name, obj_ptr->_baud_rate) == -1)
+	      continue;
+	    //init successful
+	    else
+	      pfds[0].fd = obj_ptr->_s_fd;
+	  }
+
 	//Only one file, pollin, 500ms block timeout.
 	//A higher block timeout will result in less loops
 	//But main thread will spend more time waiting to join.

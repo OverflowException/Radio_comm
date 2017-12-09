@@ -111,7 +111,10 @@ namespace rfcom
     void clearPDUStream();
     void clearSyncTimeStream();
   private:
+    std::string _port_name;
+    speed_t _baud_rate;
     int _s_fd;  //serial port file descripter
+    bool _port_connected;
     std::ofstream _fs_raw_log;    //output raw log file stream
     std::ofstream _fs_packet_log; //output packet log file stream
     
